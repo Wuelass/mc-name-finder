@@ -14,12 +14,12 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick start</a> · <a href="docs/README.fr.md">Français</a> · <a href="docs/usage.md">CLI reference</a> · <a href="docs/authentication.md">Token setup</a> · <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="#quick-start">Quick start</a> · <a href="docs/README.fr.md">Français</a> · <a href="docs/usage.md">CLI reference</a> · <a href="docs/automatic-claim.fr.md">Automatic claim</a> · <a href="docs/authentication.md">Account setup</a> · <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 ## A short name, with a real word behind it
 
-MC Name Finder turns English and French word candidates into Minecraft-compatible names, checks current profile occupancy in batches, then optionally confirms a shortlist using Minecraft Services. Explore 2–10 letters by default, preserve original spellings, and export results you can actually inspect.
+MC Name Finder turns English and French word candidates into Minecraft-compatible names, checks current profile occupancy in batches, then optionally confirms a shortlist using Minecraft Services. Connect your account to monitor a target and attempt an automatic name change when it becomes available. Explore 2–10 letters by default, preserve original spellings, and export results you can actually inspect.
 
 **A missing profile is not proof of availability.** Public lookup reports `UNREGISTERED`; only an authenticated availability check can report `AVAILABLE`. Every observation carries its own UTC timestamp. Results are a snapshot, not a reservation.
 
@@ -27,9 +27,11 @@ MC Name Finder turns English and French word candidates into Minecraft-compatibl
 - **Two-stage verification** — fast public lookups first; authenticated confirmation only for names you choose.
 - **Readable results** — Rich terminal progress, CSV/JSON reports, and separate text lists for each length.
 - **Recoverable scans** — checkpoints, bounded retries, `Retry-After` support, and Ctrl+C saves.
-- **Local token configuration** — `.env` support, no credentials in reports, no token needed for discovery.
+- **Microsoft account login** — device-code sign-in, local credential cache, automatic token refresh, and account identity checks.
+- **Optional automatic claim** — a single target, scheduled start, eligibility precheck, explicit `--claim` opt-in, and verified success.
+- **Local token configuration** — `.env` remains supported for manual confirmation; discovery needs no account.
 
-This is a discovery tool. It does not rename your account, claim usernames, or implement Microsoft sign-in. It targets **Minecraft Java profile names**, not Bedrock gamertags.
+The default discovery commands are read-only. `watch --claim` can change the connected account’s **Minecraft Java profile name**. It targets Java names, not Bedrock gamertags.
 
 ## Quick start
 
@@ -95,7 +97,7 @@ A full corpus scan may take a long time. Use `--min-frequency` to prioritize com
 
 ## Confirm your shortlist
 
-Edit `.env` locally:
+Choose either a saved Microsoft login (`confirm --account default --top 20`, after `login`) or a manual Minecraft Services token. For the manual token option, edit `.env` locally:
 
 ```dotenv
 MC_ACCESS_TOKEN=your_minecraft_services_access_token
@@ -117,6 +119,33 @@ mc-name-finder confirm --names example --refresh
 `example` and `another` are **command examples**, not claims that these names are free. Availability can change immediately after a check. Your ability to change a name is a separate account condition.
 
 The token must be a **Minecraft Services access token**, without the `Bearer ` prefix. A Microsoft password, Microsoft OAuth token, or Xbox/XSTS token will not work. See [authentication](docs/authentication.md) for the distinction, safe setup, expiration, and troubleshooting. The `.env` file is ignored by Git; only `.env.example` belongs in the repository.
+
+## Connect an account and claim a target
+
+Install **Node.js 20+ with npm** in addition to Python; see [nodejs.org](https://nodejs.org/en/download). Login installs the pinned authentication helper automatically on first use. Node.js is needed only for account authentication, not public scans.
+
+```bash
+# Open the Microsoft sign-in link and enter the code printed in your terminal
+mc-name-finder login
+
+# Verify the current profile name and name-change eligibility
+mc-name-finder account
+
+# Monitor only; no name-change request is sent
+mc-name-finder watch TARGET_NAME
+
+# Arm automatic name change on this account
+mc-name-finder watch TARGET_NAME --claim --expected-profile CURRENT_NAME
+
+# Start polling near an estimated drop (example time, explicit timezone required)
+mc-name-finder watch TARGET_NAME --claim --expected-profile CURRENT_NAME --start-at "2026-10-15T23:11:46+02:00" --max-minutes 10
+```
+
+Replace `TARGET_NAME` and `CURRENT_NAME` with your desired name and the profile shown by `account`. Watch targets accept letters, digits and underscores, 3–16 characters, and do not need to appear in a scan report. `--claim` authorizes a real change when `AVAILABLE` is observed. Keep the process and machine running; Ctrl+C stops it. There is no claim guarantee against competing users, service restrictions or an inaccurate drop estimate.
+
+The helper uses PrismarineJS’s documented Microsoft device-code flow. The Microsoft page may label the client **Minecraft for Nintendo Switch**; this is the upstream authentication client, and no Switch hardware is required. Sign in to your own licensed Java account through Microsoft, not into this tool with a password. Authentication can be refused or require renewed sign-in; this project does not promise continued acceptance by Microsoft.
+
+Credentials are stored in a private local application-data directory, outside the repository. Availability is checked at least 16 seconds apart; retries respect backoff. Only one watcher per profile can run in the same data directory. The app verifies the UUID and current name before changing it, checks eligibility, sends one PUT attempt, then verifies the result. An uncertain write is not blindly repeated. Run `account` to reconcile a stopped change before restarting; see the [French walkthrough](docs/automatic-claim.fr.md) and [authentication guide](docs/authentication.md).
 
 ## Read the results
 
@@ -161,7 +190,7 @@ Custom input uses the same normalization, length filtering and deduplication. Bl
 
 Public lookups send at most 10 names per request, with at least 1 second between requests. Authenticated confirmations are spaced at least 16 seconds apart. These are conservative defaults based on community-observed behavior, **not a guaranteed service quota**. Limits may change and other tools using the same IP/account consume the same allowance.
 
-The client honors numeric and HTTP-date `Retry-After` headers, backs off on transient failures, and stops after four attempts. Authentication failures stop confirmation. Invalid JSON, unexpected response schemas and non-success responses are never interpreted as free names. Redirects are disabled so credentials remain on the intended endpoint.
+The client honors numeric and HTTP-date `Retry-After` headers, backs off on transient failures, and stops after four attempts. 401 responses can refresh credentials when using a saved account; persistent authentication failures stop the operation. Invalid JSON, unexpected response schemas and non-success responses are never interpreted as free names. Redirects are disabled so credentials remain on the intended endpoint.
 
 Checkpoints are saved every 10 successful public batches and after each authenticated check. Normal completion, API failure and Ctrl+C export the latest in-memory observations. An abrupt power loss can discard progress since the last checkpoint. Run one process per output directory; pacing is per process, so avoid parallel confirmations with the same account.
 
@@ -172,10 +201,11 @@ python -m pip install -e '.[dev]'
 ruff check .
 ruff format --check .
 pytest -q
+node --test tests/node/auth-bridge.test.cjs
 python -m build
 ```
 
-GitHub Actions runs linting, packaging and offline tests on Linux/Windows across Python 3.10, 3.12 and 3.13. Tests mock Minecraft Services; they never need a real token or consume API requests. See [contributing](CONTRIBUTING.md) and [architecture](docs/architecture.md).
+GitHub Actions runs linting, packaging and offline tests on Linux/Windows across Python 3.10, 3.12 and 3.13. Python and Node bridge tests mock Minecraft/Microsoft services; they never need a real token or consume API requests. See [contributing](CONTRIBUTING.md) and [architecture](docs/architecture.md).
 
 ## License and credits
 

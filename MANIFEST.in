@@ -1,3 +1,4 @@
 include LICENSE THIRD_PARTY_NOTICES.md CONTRIBUTING.md SECURITY.md .env.example
 recursive-include docs *.md *.svg
 recursive-include examples *.txt
+recursive-include tests/node *.cjs

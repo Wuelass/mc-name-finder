@@ -1,0 +1,9 @@
+{
+  "name": "mc-name-finder-auth-helper",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Device-code Microsoft authentication bridge for MC Name Finder",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "dependencies": { "prismarine-auth": "3.1.1" }
+}

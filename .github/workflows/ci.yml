@@ -18,9 +18,19 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - run: python -m pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
       - run: python -m pytest -q
+      - run: node --check src/mc_name_finder/node/bridge.cjs
+      - run: node --test tests/node/auth-bridge.test.cjs
+      - name: Install authentication helper without signing in
+        if: matrix.python == '3.12'
+        env:
+          MC_NAME_FINDER_HOME: ${{ runner.temp }}/mc-name-finder-auth
+        run: mc-name-finder auth-setup
       - run: python -m build
       - run: mc-name-finder --version

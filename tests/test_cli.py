@@ -164,3 +164,74 @@ def test_edited_report_names_cannot_inject_urls(tmp_path):
     path.write_text(json.dumps(data))
     with pytest.raises(ValueError, match="invalid candidate"):
         load_report(tmp_path)
+
+
+def test_login_cli_displays_profile_without_exposing_token(monkeypatch, capsys):
+    signin = Mock(return_value={"id": "0" * 32, "name": "MyPlayer", "nameChangeAllowed": True})
+    monkeypatch.setattr("mc_name_finder.cli.login", signin)
+    assert main(["login", "--account", "main", "--no-browser"]) == 0
+    assert signin.call_args.kwargs["open_browser"] is False
+    assert signin.call_args.args == ("main",)
+    assert "MyPlayer" in capsys.readouterr().out
+
+
+def test_watch_cli_routes_explicit_claim_and_schedule(monkeypatch, tmp_path, fake_api):
+    from contextlib import nullcontext
+
+    provider = Mock()
+    provider.identity = {"id": "0" * 32, "name": "OldName"}
+    provider.directory = tmp_path
+    monkeypatch.setattr("mc_name_finder.cli.AccountToken", Mock(return_value=provider))
+    monkeypatch.setattr("mc_name_finder.cli.profile_lock", lambda uuid: nullcontext())
+    engine = Mock(return_value=0)
+    monkeypatch.setattr("mc_name_finder.cli.run_watch", engine)
+    assert (
+        main(
+            [
+                "watch",
+                "Ab_9",
+                "--claim",
+                "--expected-profile",
+                "OldName",
+                "--start-at",
+                "2026-10-15T23:11:46+02:00",
+                "--max-minutes",
+                "10",
+            ]
+        )
+        == 0
+    )
+    assert engine.call_args.args[0] == "Ab_9"
+    assert engine.call_args.kwargs["claim"] is True
+    assert engine.call_args.kwargs["start_at"].hour == 21
+    assert engine.call_args.kwargs["expected_profile"] == "OldName"
+
+
+def test_account_reconciles_uncertain_outcome_without_writing(monkeypatch, tmp_path, fake_api):
+    from contextlib import nullcontext
+
+    provider = Mock()
+    provider.identity = {"id": "0" * 32, "name": "OldName"}
+    provider.directory = tmp_path
+    provider.profile.return_value = {"id": "0" * 32, "name": "NewName"}
+    provider.call.return_value = {"nameChangeAllowed": False}
+    monkeypatch.setattr("mc_name_finder.cli.AccountToken", Mock(return_value=provider))
+    monkeypatch.setattr("mc_name_finder.cli.profile_lock", lambda uuid: nullcontext())
+    (tmp_path / "watch.json").write_text(json.dumps({"status": "UNCERTAIN", "target": "NewName"}))
+    assert main(["account"]) == 0
+    assert json.loads((tmp_path / "watch.json").read_text())["status"] == "SUCCESS"
+    fake_api.change_name.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["watch", "ab"],
+        ["watch", "abc", "--interval", "1"],
+        ["watch", "abc", "--start-at", "2026-10-15T23:11:46"],
+    ],
+)
+def test_watch_rejects_invalid_targets_pacing_and_naive_schedule(args):
+    with pytest.raises(SystemExit) as error:
+        main(args)
+    assert error.value.code == 2

@@ -32,6 +32,7 @@ Output folders are not designed for concurrent writers. Do not set `--output` to
 | `--top N` | `20` | Number of highest-ranked unregistered, unconfirmed candidates |
 | `--names NAME …` | None | Explicit names from the report; overrides top selection |
 | `--env-file PATH` | `.env` | Explicit dotenv file path |
+| `--account ALIAS` | None | Use a saved Microsoft login instead of `.env` |
 | `--delay SECONDS` | `16` | Minimum request spacing; cannot be below 16 |
 | `--refresh` | Off | Include previously confirmed names |
 
@@ -54,3 +55,37 @@ The authenticated result is a separate observation from the public one; it does 
 - Authenticated: `GET https://api.minecraftservices.com/minecraft/profile/name/{name}/available`, Minecraft Services bearer token.
 
 These service endpoints are not a versioned SDK contract. Community behavior can change; report unexpected responses with credentials removed. Primary implementation references include [NameSpyglass](https://github.com/LangTian0110/NameSpyglass) and [prismarine-auth](https://github.com/PrismarineJS/prismarine-auth); neither is a Mojang service guarantee.
+
+
+## Account commands
+
+- `auth-setup`: install the pinned Node authentication helper. Requires Node.js 20+ and npm. Normally `login` does this automatically.
+- `login [--account ALIAS] [--no-browser]`: Microsoft device-code sign-in. Default alias: `default`. No email or password is passed as a CLI argument. `--no-browser` prints the URL/code for manual opening.
+- `account [--account ALIAS]`: verify the connected profile UUID/name, show current name-change eligibility, and reconcile an uncertain previous name change.
+- `logout [--account ALIAS]`: remove this alias’s local tokens and saved identity; it does not revoke Microsoft sessions remotely. Watch history remains, for reconciliation.
+
+Aliases use 1–40 ASCII letters, digits, hyphens or underscores. Different licensed accounts need distinct aliases. An alias is a local label, not an email address. Reusing an alias for a different UUID is refused; use a new alias or log out first.
+
+## watch
+
+```bash
+mc-name-finder watch TARGET_NAME --claim --expected-profile CURRENT_NAME
+```
+
+| Option | Default | Behavior |
+|---|---|---|
+| `TARGET_NAME` | Required | 3–16 ASCII letters, digits or underscores; case preserved |
+| `--account ALIAS` | `default` | Saved Microsoft session |
+| `--claim` | Off | Authorize a real name change on `AVAILABLE` |
+| `--expected-profile NAME` | None | Require this current profile name when arming |
+| `--start-at TIMESTAMP` | Now | Start polling at ISO 8601 time with explicit offset, e.g. `+02:00` or `Z` |
+| `--interval SECONDS` | `16` | Minimum poll-loop delay; cannot be below 16 |
+| `--max-minutes N` | Unlimited | Stop after N polling minutes; excludes scheduled waiting time |
+
+No report or word scan is required for `watch`. The app checks eligibility before arming a claim and again before writing. It verifies account identity before and after the write. A refused change is terminal; uncertain responses are verified by reading the profile, not retried blindly. An already-owned target ends successfully without a write, even when `--expected-profile` contains the old name.
+
+A scheduled watcher authenticates/checks the account before waiting; expired tokens are renewed when polling begins. If reauthentication would require a person, the unattended watcher stops and asks you to run `login`. Service errors stop after the existing bounded retry budget. Restart explicitly after correcting the failure.
+
+State is saved as `watch.json` beside the account cache, with target, UUID, mode, status and UTC timestamps, and no token. Ctrl+C writes `STOPPED`, or `UNCERTAIN` if interrupted during a change. A crash after `CLAIMING` leaves a marker that blocks a new write until you reconcile via `account`. A time limit returns 0 with `TIMED_OUT`; this means normal completion, not a successful claim.
+
+One watcher per UUID is allowed within a data directory. A saved-account `confirm` operation uses the same profile lock. Manual `.env` confirmations or other machines are outside that lock; avoid simultaneous use of the same account.

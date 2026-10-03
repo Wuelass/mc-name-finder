@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mc-name-finder"
-version = "0.1.1"
+version = "0.2.0"
 description = "Find English and French word-based Minecraft Java usernames."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 authors = [{name = "Wuelass"}]
-dependencies = ["requests>=2.32,<3", "python-dotenv>=1.0,<2", "rich>=13.7,<15", "wordfreq>=3.1,<4"]
+dependencies = ["requests>=2.32,<3", "python-dotenv>=1.0,<2", "rich>=13.7,<15", "wordfreq>=3.1,<4", "filelock>=3.16,<4"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "ruff>=0.9,<1", "build>=1.2,<2"]
@@ -35,3 +35,6 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.setuptools.package-data]
+mc_name_finder = ["node/*.json", "node/*.cjs"]

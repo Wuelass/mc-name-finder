@@ -12,3 +12,6 @@ dist/
 results/
 *.tmp
 .DS_Store
+
+node_modules/
+.mc-name-finder/

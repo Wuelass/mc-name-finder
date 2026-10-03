@@ -11,10 +11,11 @@ python -m pip install -e '.[dev]'
 ruff check .
 ruff format --check .
 pytest -q
+node --test tests/node/auth-bridge.test.cjs
 python -m build
 ```
 
-Tests must remain offline and deterministic. Mock HTTP and time instead of polling Minecraft. Add regression coverage when changing status interpretation, token handling, retry behavior or persistence. Keep README examples and CLI help aligned with implementation.
+Node.js 20+ is required for bridge tests. Tests must remain offline and deterministic. Mock HTTP and time instead of polling Minecraft. Add regression coverage when changing status interpretation, token handling, account pinning, claim reconciliation, retry behavior or persistence. Keep README examples and CLI help aligned with implementation.
 
 ## Design expectations
 

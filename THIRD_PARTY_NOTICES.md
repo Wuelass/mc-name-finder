@@ -21,6 +21,10 @@ Wordfreq-derived data remains subject to [CC BY-SA 4.0](https://creativecommons.
 
 Requests (Apache-2.0), python-dotenv (BSD-3-Clause), Rich (MIT), and development dependencies retain their respective upstream licenses. Python packaging installs their distributions with their own notices.
 
+## Authentication helper
+
+Microsoft device-code authentication uses [prismarine-auth by PrismarineJS](https://github.com/PrismarineJS/prismarine-auth), version 3.1.1, under the MIT license. The dependency and its transitive dependencies are installed into local application data using the bundled npm lockfile; their distributions retain their notices. The bridge follows the upstream Java-token example and uses its Minecraft Nintendo Switch client title. This project does not own that Microsoft client registration.
+
 ## Minecraft
 
 Minecraft and related marks belong to their respective owners. This independent tool communicates with Minecraft Services; it is not endorsed by Mojang or Microsoft.

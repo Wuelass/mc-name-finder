@@ -1,18 +1,24 @@
 """Public CLI; discovery and authenticated confirmation are deliberately separate."""
 
 import argparse
+import json
 import math
 import os
+import subprocess
+from contextlib import nullcontext
 from pathlib import Path
 
 from dotenv import load_dotenv
+from filelock import Timeout
 from rich.console import Console
 from rich.progress import track
 from rich.table import Table
 
 from . import __version__
-from .api import ApiError, MinecraftClient
-from .storage import checkpoint, export_report, load_report, utc_now
+from .api import ApiError, MinecraftClient, valid_username
+from .auth import AccountToken, AuthError, login, logout, profile_lock, setup_helper
+from .storage import atomic_write, checkpoint, export_report, load_report, utc_now
+from .watch import parse_start, run_watch
 from .words import generate, rank
 
 console = Console(highlight=False)
@@ -83,9 +89,36 @@ def parser() -> argparse.ArgumentParser:
     confirm.add_argument("--top", type=positive_int, default=20)
     confirm.add_argument("--names", nargs="+", help="Check these names from the saved report")
     confirm.add_argument("--env-file", type=Path, default=Path(".env"))
+    confirm.add_argument("--account", help="Use a saved Microsoft login instead of .env")
     confirm.add_argument("--delay", type=bounded_float(16), default=16.0)
     confirm.add_argument(
         "--refresh", action="store_true", help="Recheck previously confirmed names"
+    )
+    commands.add_parser("auth-setup", help="Install the pinned Microsoft login helper")
+    signin = commands.add_parser("login", help="Connect your Minecraft account through Microsoft")
+    signin.add_argument("--account", default="default", help="Local account alias")
+    signin.add_argument("--no-browser", action="store_true", help="Print the link/code only")
+    info = commands.add_parser("account", help="Show connected profile and name-change eligibility")
+    info.add_argument("--account", default="default")
+    signout = commands.add_parser("logout", help="Delete local cached credentials for an alias")
+    signout.add_argument("--account", default="default")
+    watch = commands.add_parser(
+        "watch", help="Monitor one name; optionally claim it when available"
+    )
+    watch.add_argument("name", type=valid_username)
+    watch.add_argument("--account", default="default")
+    watch.add_argument(
+        "--claim", action="store_true", help="Allow automatic name change on AVAILABLE"
+    )
+    watch.add_argument(
+        "--expected-profile", help="Require this current Minecraft name before arming"
+    )
+    watch.add_argument(
+        "--start-at", type=parse_start, help="ISO timestamp with timezone to start polling"
+    )
+    watch.add_argument("--interval", type=bounded_float(16), default=16.0)
+    watch.add_argument(
+        "--max-minutes", type=bounded_float(0.01), help="Stop after N polling minutes"
     )
     return root
 
@@ -169,10 +202,12 @@ def scan(args) -> int:
 
 
 def confirm(args) -> int:
-    load_dotenv(args.env_file, override=False)
-    token = os.getenv("MC_ACCESS_TOKEN", "").strip()
-    if not token or token.startswith("Bearer "):
-        raise ValueError("Set MC_ACCESS_TOKEN in .env to a Minecraft token, without 'Bearer '.")
+    provider = AccountToken(args.account, notify=console.print) if args.account else None
+    if not provider:
+        load_dotenv(args.env_file, override=False)
+        token = os.getenv("MC_ACCESS_TOKEN", "").strip()
+        if not token or token.startswith("Bearer "):
+            raise ValueError("Set MC_ACCESS_TOKEN in .env, or use --account after Microsoft login.")
     candidates, metadata = load_report(args.output)
     if args.names:
         requested = {name.lower() for name in args.names}
@@ -190,17 +225,26 @@ def confirm(args) -> int:
     console.print(f"Confirming {len(selected)} names · {args.delay:g}s spacing · read-only")
     exit_code = 0
     try:
-        with MinecraftClient(exact_delay=args.delay, notify=console.print) as client:
+        with (
+            profile_lock(provider.identity["id"]) if provider else nullcontext(),
+            MinecraftClient(exact_delay=args.delay, notify=console.print) as client,
+        ):
+            if provider:
+                provider.profile(client)
             for candidate in track(selected, description="Confirming availability"):
-                candidate.exact_status = client.availability(candidate.name, token)
+                candidate.exact_status = (
+                    provider.call(client.availability, candidate.name)
+                    if provider
+                    else client.availability(candidate.name, token)
+                )
                 candidate.exact_checked_at_utc = utc_now()
                 console.print(f"{candidate.name:16} {candidate.exact_status}", markup=False)
                 checkpoint(args.output, candidates, metadata)
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted. Saving completed confirmations.[/yellow]")
         exit_code = 130
-    except ApiError as error:
-        console.print(f"[red]{error}[/red]")
+    except (ApiError, AuthError) as error:
+        console.print(str(error), style="red", markup=False)
         exit_code = 1
     finally:
         export_report(args.output, candidates, metadata)
@@ -208,11 +252,82 @@ def confirm(args) -> int:
     return exit_code
 
 
+def connected_account(args) -> int:
+    if args.command == "auth-setup":
+        setup_helper(console.print)
+        console.print("Microsoft login helper ready. Run login to connect your account.")
+        return 0
+    if args.command == "login":
+        profile = login(args.account, notify=console.print, open_browser=not args.no_browser)
+        console.print(f"Connected: {profile['name']} · alias: {args.account}", markup=False)
+        console.print(f"Name change allowed: {profile['nameChangeAllowed']}")
+        return 0
+    if args.command == "logout":
+        logout(args.account)
+        console.print("Local account credentials removed. Microsoft sessions were not revoked.")
+        return 0
+    provider = AccountToken(args.account, notify=console.print)
+    with (
+        profile_lock(provider.identity["id"]),
+        MinecraftClient(
+            exact_delay=getattr(args, "interval", 16),
+            notify=console.print,
+        ) as client,
+    ):
+        if args.command == "account":
+            profile = provider.profile(client)
+            eligibility = provider.call(client.eligibility)
+            console.print(
+                f"Minecraft profile: {profile['name']} · alias: {args.account}", markup=False
+            )
+            console.print(f"UUID: {profile['id']}")
+            console.print(f"Name change allowed: {eligibility['nameChangeAllowed']}")
+            state_path = provider.directory / "watch.json"
+            if state_path.exists():
+                state = json.loads(state_path.read_text())
+                if state.get("status") in {"CLAIMING", "UNCERTAIN", "UNVERIFIED"}:
+                    state["status"] = (
+                        "SUCCESS"
+                        if profile["name"].lower() == state["target"].lower()
+                        else "RESOLVED"
+                    )
+                    state["reconciled_at_utc"] = utc_now()
+                    state["current_name"] = profile["name"]
+                    atomic_write(state_path, json.dumps(state, indent=2) + "\n")
+                    console.print(f"Previous change outcome reconciled: {state['status']}")
+            return 0
+        return run_watch(
+            args.name,
+            provider,
+            client,
+            provider.directory / "watch.json",
+            claim=args.claim,
+            expected_profile=args.expected_profile,
+            start_at=args.start_at,
+            interval=args.interval,
+            max_minutes=args.max_minutes,
+            notify=console.print,
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        return scan(args) if args.command == "scan" else confirm(args)
-    except (OSError, ValueError, TypeError, KeyError) as error:
+        if args.command == "scan":
+            return scan(args)
+        if args.command == "confirm":
+            return confirm(args)
+        return connected_account(args)
+    except KeyboardInterrupt:
+        console.print("\nStopped.")
+        return 130
+    except Timeout:
+        console.print("This account or authentication helper is already in use by another process.")
+        return 1
+    except subprocess.SubprocessError:
+        console.print("Local authentication helper failed; check Node.js/npm and retry login.")
+        return 1
+    except (OSError, ValueError, TypeError, KeyError, ApiError, AuthError) as error:
         # Paths and response contents can be attacker-controlled. Keep errors literal.
         console.print(f"Error: {error}", style="red", markup=False)
         return 1

@@ -1,6 +1,7 @@
 """Small Minecraft Services client with bounded retries and fail-closed parsing."""
 
 import math
+import re
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -15,6 +16,36 @@ EXACT_URL = f"{BASE_URL}/minecraft/profile/name/{{}}/available"
 
 class ApiError(Exception):
     """Safe user-facing error; never includes response bodies or credentials."""
+
+
+class TokenRejected(ApiError):
+    """A read request rejected the Minecraft token (HTTP 401)."""
+
+
+class ClaimRejected(ApiError):
+    """The server explicitly refused the requested name change."""
+
+
+class ClaimUncertain(ApiError):
+    """The name-change outcome needs reconciliation; never blindly retry PUT."""
+
+
+def valid_username(name: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_]{3,16}", name):
+        raise ValueError("A target name must use 3–16 ASCII letters, digits or underscores.")
+    return name
+
+
+def parse_profile(payload: object) -> dict:
+    if (
+        not isinstance(payload, dict)
+        or not isinstance(payload.get("id"), str)
+        or not re.fullmatch(r"[0-9a-fA-F]{32}", payload["id"])
+        or not isinstance(payload.get("name"), str)
+        or not re.fullmatch(r"[A-Za-z0-9_]{1,16}", payload["name"])
+    ):
+        raise ApiError("Unexpected Minecraft profile response; no account identity inferred.")
+    return {"id": payload["id"], "name": payload["name"]}
 
 
 def retry_after(value: str | None, fallback: float) -> float:
@@ -72,10 +103,14 @@ class MinecraftClient:
                     raise ApiError("Network request failed after 4 attempts.") from None
                 self.sleep(2 ** (attempt + 1))
                 continue
+            if response.status_code == 401 and kind != "bulk":
+                raise TokenRejected(
+                    "Minecraft token rejected or expired; log in again or refresh it."
+                )
             if response.status_code in (401, 403):
                 message = (
                     "Minecraft token rejected or expired; update MC_ACCESS_TOKEN."
-                    if kind == "exact"
+                    if kind != "bulk"
                     else "Public lookup refused (401/403); try again later."
                 )
                 raise ApiError(message)
@@ -115,6 +150,7 @@ class MinecraftClient:
         return found
 
     def availability(self, name: str, token: str) -> str:
+        valid_username(name)
         payload = self._request(
             "GET",
             EXACT_URL.format(name),
@@ -128,3 +164,49 @@ class MinecraftClient:
         }:
             raise ApiError("Unexpected availability response; no result inferred.")
         return payload["status"]
+
+    def profile(self, token: str) -> dict:
+        return parse_profile(
+            self._request(
+                "GET",
+                f"{BASE_URL}/minecraft/profile",
+                "account",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        )
+
+    def eligibility(self, token: str) -> dict:
+        payload = self._request(
+            "GET",
+            f"{BASE_URL}/minecraft/profile/namechange",
+            "account",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if not isinstance(payload, dict) or type(payload.get("nameChangeAllowed")) is not bool:
+            raise ApiError("Unexpected name-change eligibility response; refusing a change.")
+        return payload
+
+    def change_name(self, name: str, token: str) -> None:
+        """One write attempt. Even a timeout may mean success; reads reconcile the result."""
+        valid_username(name)
+        try:
+            response = self.session.request(
+                "PUT",
+                f"{BASE_URL}/minecraft/profile/name/{name}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=(5, 20),
+                allow_redirects=False,
+            )
+        except requests.RequestException:
+            raise ClaimUncertain(
+                "Name-change response lost. Verify your profile before retrying."
+            ) from None
+        if response.status_code in (200, 204):
+            return
+        if response.status_code in (400, 401, 403, 409, 429):
+            raise ClaimRejected(
+                f"Name change refused (HTTP {response.status_code}); no automatic write retry."
+            )
+        raise ClaimUncertain(
+            f"Unexpected name-change response (HTTP {response.status_code}); verify your profile."
+        )

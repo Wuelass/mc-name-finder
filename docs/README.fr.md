@@ -2,7 +2,7 @@
 
 **Trouve un pseudo Minecraft Java à partir de mots anglais et français.**
 
-[English](../README.md) · [Référence CLI](usage.md) · [Configuration du token](authentication.md)
+[English](../README.md) · [Référence CLI](usage.md) · [Connexion au compte](authentication.md) · [Récupération automatique](automatic-claim.fr.md)
 
 Le projet génère des candidats de **2 à 10 lettres**, enlève les accents (`été → ete`, `cœur → coeur`), vérifie les profils Minecraft existants, puis permet de confirmer une sélection avec ton token Minecraft Services.
 
@@ -73,7 +73,21 @@ Les mots de **2 lettres** sont listés comme `IMPOSSIBLE_LENGTH` : ils ne peuven
 
 Les listes intégrées viennent de **wordfreq**, un corpus de fréquences. Elles ne représentent pas tous les mots d'un dictionnaire et peuvent inclure abréviations, noms propres ou conjugaisons. Pour une liste strictement choisie, utilise `--words`. Les chiffres, espaces, tirets, apostrophes et underscores sont exclus.
 
-## Mettre ton token dans .env
+## Connecter ton compte et surveiller un pseudo
+
+La [procédure complète sous Windows](automatic-claim.fr.md) explique l’installation, la connexion Microsoft et la surveillance. Après avoir installé Node.js 20+ avec npm :
+
+```bash
+mc-name-finder login
+mc-name-finder account
+mc-name-finder watch PSEUDO_CIBLE --claim --expected-profile TON_PSEUDO_ACTUEL
+```
+
+Remplace les deux pseudos par tes valeurs. `--claim` autorise le changement automatique dès que l’API confirme `AVAILABLE`. Sans cette option, la commande surveille seulement. Le PC et le processus doivent rester actifs ; Ctrl+C arrête le programme. La récupération reste sans garantie.
+
+Tu n’as pas besoin de remplir `.env` avec cette connexion. `login` conserve une session privée hors du dépôt et renouvelle le token quand possible. Microsoft peut afficher « Minecraft for Nintendo Switch » : c’est le client utilisé par la bibliothèque d’authentification, aucun matériel Switch n’est nécessaire.
+
+## Mettre ton token dans .env (option manuelle)
 
 Ouvre le fichier `.env` local et remplis uniquement :
 
@@ -81,7 +95,7 @@ Ouvre le fichier `.env` local et remplis uniquement :
 MC_ACCESS_TOKEN=ton_token_minecraft_services
 ```
 
-Ce n'est **pas** ton mot de passe Microsoft. Il faut un token d'accès **Minecraft Services**, sans le préfixe `Bearer `. Le projet ne gère pas la connexion Microsoft ni le renouvellement du token. Les jetons expirent : remplace le tien s'il est refusé. Consulte la [documentation d'authentification](authentication.md).
+Ce n'est **pas** ton mot de passe Microsoft. Il faut un token d'accès **Minecraft Services**, sans le préfixe `Bearer `. Pour éviter de copier un token manuellement, installe Node.js 20+ puis utilise `login`. La session Microsoft sauvegardée peut renouveler le token automatiquement ; `confirm --account default` l’utilise à la place du `.env`. Les jetons expirent : remplace le tien s'il est refusé. Consulte la [documentation d'authentification](authentication.md).
 
 Le scan public fonctionne sans token. `.env` est exclu de Git ; `.env.example`, vide, est le seul modèle publié.
 
@@ -96,7 +110,7 @@ mc-name-finder confirm --names example another
 mc-name-finder confirm --names example --refresh
 ```
 
-Les noms ci-dessus sont des exemples de commande, pas des pseudos annoncés disponibles. Le programme ne change pas ton pseudo et ne récupère aucun nom automatiquement.
+Les noms ci-dessus sont des exemples de commande, pas des pseudos annoncés disponibles. Les commandes `scan` et `confirm` ne changent pas ton pseudo. La nouvelle commande `watch --claim` permet une tentative automatique : voir le [tutoriel complet](automatic-claim.fr.md).
 
 ## Comprendre les résultats
 
