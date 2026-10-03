@@ -19,7 +19,7 @@
 
 ## A short name, with a real word behind it
 
-MC Name Finder turns English and French word candidates into Minecraft-compatible names, checks current profile occupancy in batches, then optionally confirms a shortlist using Minecraft Services. Explore 2–6 letters by default, preserve original spellings, and export results you can actually inspect.
+MC Name Finder turns English and French word candidates into Minecraft-compatible names, checks current profile occupancy in batches, then optionally confirms a shortlist using Minecraft Services. Explore 2–10 letters by default, preserve original spellings, and export results you can actually inspect.
 
 **A missing profile is not proof of availability.** Public lookup reports `UNREGISTERED`; only an authenticated availability check can report `AVAILABLE`. Every observation carries its own UTC timestamp. Results are a snapshot, not a reservation.
 
@@ -47,7 +47,7 @@ cd mc-name-finder
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 Copy-Item .env.example .env
-.\.venv\Scripts\mc-name-finder.exe scan --min-length 3 --max-length 6 --min-frequency 3 --limit 500
+.\.venv\Scripts\mc-name-finder.exe scan --min-length 3 --max-length 10 --min-frequency 3
 ```
 
 No PowerShell activation or execution-policy change is required.
@@ -62,7 +62,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -e .
 cp .env.example .env
 chmod 600 .env
-.venv/bin/mc-name-finder scan --min-length 3 --max-length 6 --min-frequency 3 --limit 500
+.venv/bin/mc-name-finder scan --min-length 3 --max-length 10 --min-frequency 3
 ```
 
 On Debian/Ubuntu, install your distribution's `python3-venv` package if venv creation is unavailable.
@@ -72,8 +72,11 @@ On Debian/Ubuntu, install your distribution's `python3-venv` package if venv cre
 The commands below assume your virtual environment is activated. You can always substitute the explicit executable paths above, or run `python -m mc_name_finder`.
 
 ```bash
-# All 2–6 letter candidates in the supported corpora
+# All 2–10 letter candidates in the supported corpora
 mc-name-finder scan
+
+# Longer words, 7–10 letters, without a candidate limit
+mc-name-finder scan --min-length 7 --max-length 10 --output results/longer
 
 # Only French words of 4 letters
 mc-name-finder scan --languages fr --min-length 4 --max-length 4 --output results/french
@@ -88,7 +91,7 @@ mc-name-finder scan --resume
 mc-name-finder scan --overwrite
 ```
 
-A full corpus scan may take a long time. Start with a frequency filter and `--limit` to get a manageable shortlist. Two-letter words appear as `IMPOSSIBLE_LENGTH`: they cannot be registered as new Java usernames.
+A full corpus scan may take a long time. Use `--min-frequency` to prioritize common words. `--limit 500` is only a small preview: it scans the 500 highest-ranked candidates overall, many of which may already be taken. Omit `--limit` to explore the full selected range. Two-letter words appear as `IMPOSSIBLE_LENGTH`: they cannot be registered as new Java usernames.
 
 ## Confirm your shortlist
 

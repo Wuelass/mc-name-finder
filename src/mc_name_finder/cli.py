@@ -48,7 +48,13 @@ def parser() -> argparse.ArgumentParser:
     scan = commands.add_parser("scan", help="Discover words and check public profile occupancy")
     scan.add_argument("--languages", nargs="+", choices=["en", "fr"], default=["en", "fr"])
     scan.add_argument("--min-length", "--min", type=int, default=2)
-    scan.add_argument("--max-length", "--max", type=int, default=6)
+    scan.add_argument(
+        "--max-length",
+        "--max",
+        type=int,
+        default=10,
+        help="Maximum normalized length (default: 10, up to 16)",
+    )
     scan.add_argument(
         "--min-frequency",
         type=bounded_float(0, 8),

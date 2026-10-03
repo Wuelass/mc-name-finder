@@ -8,7 +8,7 @@
 |---|---|---|
 | `--languages en fr` | `en fr` | Supported built-in corpora; one or both |
 | `--min-length` / `--min` | `2` | Minimum normalized length |
-| `--max-length` / `--max` | `6` | Maximum normalized length; up to 16 |
+| `--max-length` / `--max` | `10` | Maximum normalized length; up to 16 |
 | `--min-frequency` | `0` | Minimum Zipf frequency, between 0 and 8; 3 is a practical starting point |
 | `--limit N` | None | Highest-ranked N candidates overall, not N per length |
 | `--words PATH` | None | UTF-8 input replaces built-in corpora; frequency threshold does not apply |

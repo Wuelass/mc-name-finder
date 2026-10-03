@@ -4,7 +4,7 @@
 
 [English](../README.md) · [Référence CLI](usage.md) · [Configuration du token](authentication.md)
 
-Le projet génère des candidats de **2 à 6 lettres**, enlève les accents (`été → ete`, `cœur → coeur`), vérifie les profils Minecraft existants, puis permet de confirmer une sélection avec ton token Minecraft Services.
+Le projet génère des candidats de **2 à 10 lettres**, enlève les accents (`été → ete`, `cœur → coeur`), vérifie les profils Minecraft existants, puis permet de confirmer une sélection avec ton token Minecraft Services.
 
 > **« Aucun profil trouvé » ne veut pas dire « disponible ».** Un pseudo peut encore être réservé ou interdit. Seul le statut `AVAILABLE`, obtenu par une vérification authentifiée, confirme sa disponibilité à l'heure du test. Ce résultat ne réserve pas le pseudo.
 
@@ -20,10 +20,10 @@ py -m venv .venv
 Copy-Item .env.example .env
 ```
 
-Commence par un petit scan de mots assez courants :
+Scanne les mots assez courants de 3 à 10 lettres :
 
 ```powershell
-.\.venv\Scripts\mc-name-finder.exe scan --min-length 3 --max-length 6 --min-frequency 3 --limit 500
+.\.venv\Scripts\mc-name-finder.exe scan --min-length 3 --max-length 10 --min-frequency 3
 ```
 
 Aucune activation PowerShell ni modification de sa politique d'exécution n'est nécessaire.
@@ -37,7 +37,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -e .
 cp .env.example .env
 chmod 600 .env
-.venv/bin/mc-name-finder scan --min-length 3 --max-length 6 --min-frequency 3 --limit 500
+.venv/bin/mc-name-finder scan --min-length 3 --max-length 10 --min-frequency 3
 ```
 
 Sous Debian/Ubuntu, le paquet `python3-venv` peut être nécessaire.
@@ -47,8 +47,11 @@ Sous Debian/Ubuntu, le paquet `python3-venv` peut être nécessaire.
 Les exemples suivants supposent l'environnement virtuel activé. Sinon, utilise le chemin de l'exécutable indiqué ci-dessus.
 
 ```bash
-# Tous les candidats des corpus anglais/français de 2 à 6 lettres
+# Tous les candidats des corpus anglais/français de 2 à 10 lettres
 mc-name-finder scan
+
+# Mots de 7 à 10 lettres, sans limite de candidats
+mc-name-finder scan --min-length 7 --max-length 10 --output results/longs
 
 # Mots français de 4 lettres uniquement
 mc-name-finder scan --languages fr --min-length 4 --max-length 4 --output results/francais
@@ -66,7 +69,7 @@ mc-name-finder scan --overwrite
 mc-name-finder scan --words examples/words.txt --output results/personnel
 ```
 
-Les mots de **2 lettres** sont listés comme `IMPOSSIBLE_LENGTH` : ils ne peuvent pas devenir de nouveaux pseudos Java. Le scan complet peut être long. `--limit` et `--min-frequency` réduisent la sélection.
+Les mots de **2 lettres** sont listés comme `IMPOSSIBLE_LENGTH` : ils ne peuvent pas devenir de nouveaux pseudos Java. Le scan complet peut être long. `--min-frequency` réduit la sélection aux mots plus courants. `--limit 500` ne vérifie que les 500 candidats les mieux classés au total, souvent déjà pris : omets cette option pour explorer toute la plage choisie. Une ancienne reprise `--resume` conserve sa plage initiale ; utilise un nouveau dossier ou `--overwrite` pour inclure les longueurs supplémentaires.
 
 Les listes intégrées viennent de **wordfreq**, un corpus de fréquences. Elles ne représentent pas tous les mots d'un dictionnaire et peuvent inclure abréviations, noms propres ou conjugaisons. Pour une liste strictement choisie, utilise `--words`. Les chiffres, espaces, tirets, apostrophes et underscores sont exclus.
 

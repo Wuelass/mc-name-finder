@@ -7,7 +7,7 @@
 <text x="225" y="98" fill="#6ee7bb" font-family="Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="3">WORD DISCOVERY / MINECRAFT JAVA</text>
 <text x="223" y="160" fill="#f0f6fc" font-family="Arial, sans-serif" font-size="55" font-weight="700">MC Name Finder</text>
 <text x="72" y="237" fill="#d7e3ec" font-family="Arial, sans-serif" font-size="29">Find a name worth keeping.</text>
-<text x="74" y="288" fill="#93aebd" font-family="Arial, sans-serif" font-size="18">EN + FR</text><circle cx="166" cy="282" r="3" fill="#56d6af"/><text x="187" y="288" fill="#93aebd" font-family="Arial, sans-serif" font-size="18">2–6 LETTERS</text><circle cx="331" cy="282" r="3" fill="#56d6af"/><text x="351" y="288" fill="#93aebd" font-family="Arial, sans-serif" font-size="18">TIMESTAMPED RESULTS</text>
+<text x="74" y="288" fill="#93aebd" font-family="Arial, sans-serif" font-size="18">EN + FR</text><circle cx="166" cy="282" r="3" fill="#56d6af"/><text x="187" y="288" fill="#93aebd" font-family="Arial, sans-serif" font-size="18">2–10 LETTERS</text><circle cx="331" cy="282" r="3" fill="#56d6af"/><text x="351" y="288" fill="#93aebd" font-family="Arial, sans-serif" font-size="18">TIMESTAMPED RESULTS</text>
 <rect x="841" y="70" width="283" height="215" rx="15" fill="#0b1925" stroke="#2d4d5d"/><text x="867" y="107" fill="#7899aa" font-family="monospace" font-size="13">DISCOVER → VERIFY</text>
 <text x="867" y="153" fill="#e2edf4" font-family="monospace" font-size="24">name / 03</text><path d="M867 174h230" stroke="#244454"/><text x="867" y="207" fill="#93aebd" font-family="monospace" font-size="15">public lookup</text><text x="867" y="242" fill="#6ee7bb" font-family="monospace" font-size="15">authenticated check</text>
 </svg>
